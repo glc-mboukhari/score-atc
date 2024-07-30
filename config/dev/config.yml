@@ -1,0 +1,9 @@
+database:
+  host: http://stats-dwh-redsh.dev.carboat.cloud
+  port: 5439
+  database: dwhstats
+  user: mboukhari
+  password: b0!a*{UZ+7_"55if)zED
+
+s3:
+  bucket_name: your-bucket-name
