@@ -1,5 +1,5 @@
 database:
-  host: http://stats-dwh-redsh.prod.carboat.cloud
+  host: 'stats-dwh-redsh.prod.carboat.cloud'
   port: 5439
   database: dwhstats
   user: mboukhari

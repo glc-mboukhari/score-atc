@@ -1,3 +1,5 @@
+drop table referentiel_vehicle;
+Create table referentiel_vehicle AS
 SELECT 
     year, 
     month, 
@@ -10,4 +12,4 @@ SELECT
     r_commercial_model, 
     v_start_date, 
     v_end_date  
-FROM "dwhstats"."dwh_stats"."dim_referentiel_vehicule"
+FROM "dwhstats"."dwh_stats"."dim_referentiel_vehicule";

@@ -21,7 +21,7 @@ def main():
     extractor.connect()
     data = extractor.fetch_data(query)
     extractor.close()
-
+    """
     # Step 2: Preprocess the data
     preprocessor = ProcessDataForATC()
     processed_data = preprocessor.preprocess(data)
@@ -29,6 +29,6 @@ def main():
     # Step 3: Load the processed data to S3
     loader = LoadDataS3(bucket_name)
     loader.upload_dataframe_as_csv(processed_data, s3_key)
-
+    """
 if __name__ == "__main__":
     main()

@@ -61,7 +61,20 @@ AND CONCAT(CONCAT(CONCAT(CONCAT(ann.year, '-'), ann.month), '-'), ann.day) = CAS
 AND CONCAT(CONCAT(CONCAT(CONCAT(ann.year, '-'), ann.month), '-'), ann.day) BETWEEN '{{start_date}}' AND '{{end_date}}'
 order by ann.date_snapshot, ann.reference asc;
 
-SELECT year, month, day, v_label, v_version_id, v_specs_price, r_model, r_make, r_commercial_model, v_start_date, v_end_date  
+drop table referentiel_vehicle;
+Create table referentiel_vehicle AS
+SELECT 
+    year, 
+    month, 
+    day, 
+    v_label, 
+    v_version_id, 
+    v_specs_price, 
+    r_model, 
+    r_make, 
+    r_commercial_model, 
+    v_start_date, 
+    v_end_date  
 FROM "dwhstats"."dwh_stats"."dim_referentiel_vehicule";
 
 drop table veh_info;
@@ -154,4 +167,5 @@ SELECT
 FROM ann_online_nov_2023_april_2024 ann
 LEFT JOIN veh_info veh on ann.vehicle_id = veh.vehicle_id
 LEFT JOIN package_nov_2023_april_2024 pack ON UPPER(ann.owner_correlation_id) = pack.ccl_numero 
-LEFT JOIN package_price_nov_2023_april_2024 pack_price ON UPPER(ann.owner_correlation_id) = pack_price.ccl_numero;
+LEFT JOIN package_price_nov_2023_april_2024 pack_price ON UPPER(ann.owner_correlation_id) = pack_price.ccl_numero
+LEFT JOIN referentiel_vehicle ref_veh ON ann.reference = ref_veh.reference;

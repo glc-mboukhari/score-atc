@@ -1,9 +1,10 @@
 import psycopg2
 from psycopg2 import sql
+import pandas as pd 
 
 class RedshiftExecutor:
-    def __init__(self, dbname, user, password, host, port='5439'):
-        self.dbname = dbname
+    def __init__(self, database, user, password, host, port):
+        self.database = database
         self.user = user
         self.password = password
         self.host = host
@@ -12,20 +13,28 @@ class RedshiftExecutor:
 
     def connect(self):
         self.connection = psycopg2.connect(
-            dbname=self.dbname,
             user=self.user,
-            password=self.password,
             host=self.host,
-            port=self.port
+            password=self.password,
+            port=self.port,
+            database=self.database
         )
 
     def substitute_parameters(self, sql_text, parameters):
+        """
+        replace in sql queries the dates parameters (start/end)
+        if specified none in functions, no parameters
+        """
         if parameters:
             for key, value in parameters.items():
                 sql_text = sql_text.replace(f'{{{{{key}}}}}', value)
         return sql_text
 
     def execute_sql_file(self, file_path, parameters=None):
+        """
+        open file with sql queries and execute them.
+        No need to fetch results since it's only about creating tables
+        """
         with open(file_path, 'r') as file:
             sql_commands = file.read()
 
@@ -36,6 +45,9 @@ class RedshiftExecutor:
             self.connection.commit()
 
     def fetch_results(self, query, parameters=None):
+        """
+        execute query and retrieve results
+        """
         query = self.substitute_parameters(query, parameters)
         with self.connection.cursor() as cursor:
             cursor.execute(sql.SQL(query))
@@ -43,15 +55,31 @@ class RedshiftExecutor:
             return results
 
     def execute_query(self, query, parameters=None):
+        """
+        execute query
+        """
         query = self.substitute_parameters(query, parameters)
         with self.connection.cursor() as cursor:
             cursor.execute(sql.SQL(query))
             self.connection.commit()
 
     def close(self):
+        """
+        close connection
+        """
         if self.connection:
             self.connection.close()
-
+            
+    def fetch_data(self, query: str) -> pd.DataFrame:
+        """
+        return dataframe from results
+        """
+        with self.connection.cursor() as cursor:
+            cursor.execute(query)
+            data = cursor.fetchall()
+            columns = [desc[0] for desc in cursor.description]
+            return pd.DataFrame(data, columns=columns)
+            
 if __name__ == "__main__":
     executor = RedshiftExecutor(
         dbname='your_dbname',
