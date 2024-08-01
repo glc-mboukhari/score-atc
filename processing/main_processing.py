@@ -1,8 +1,9 @@
 from scripts.redshift.redshift_client import RedshiftExecutor
 from process.process_data import ProcessDataForATC
-from load.load_data import LoadDataS3
+from scripts.s3.s3_client import S3Loader
 
 def main():
+    '''
     # Redshift connection details
     dbname = 'your_dbname'
     user = 'your_username'
@@ -22,6 +23,7 @@ def main():
     data = extractor.fetch_data(query)
     extractor.close()
     """
+    '''
     # Step 2: Preprocess the data
     preprocessor = ProcessDataForATC()
     processed_data = preprocessor.preprocess(data)

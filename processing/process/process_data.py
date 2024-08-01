@@ -216,3 +216,25 @@ class ProcessDataForATC:
         target_mean_make = data.groupby('vehicle_make')['new_target'].mean()
         data['vehicle_make_encoded'] = data['vehicle_make'].map(target_mean_make)
         return data
+    
+
+
+if __name__ == "__main__":
+    from pathlib import Path
+
+    def load_data(file_name):
+        script_dir = Path(__file__).resolve().parent
+        print(f"Script directory: {script_dir}")
+
+        data_path = script_dir / '../../data' / file_name
+        print(f"Constructed data path (before resolve): {data_path}")
+
+        data_path = data_path.resolve()
+        print(f"Resolved data path: {data_path}")
+
+        # Load your data
+        data = pd.read_csv(data_path)
+        return data
+
+    data = load_data('final_ann_post_treatment.csv')
+    

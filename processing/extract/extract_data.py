@@ -36,8 +36,10 @@ if __name__ == "__main__":
 
 
 
-
+'''
 a = RedShiftExecutor('dwhstats','mboukhari', 'b0!a*{UZ+7_"55if)zED','stats-dwh-redsh.prod.carboat.cloud','5439')
 a.connect()
 with open(file_path, 'r') as file:
         sql_commands = file.read()
+
+'''
