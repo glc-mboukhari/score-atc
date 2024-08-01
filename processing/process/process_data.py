@@ -23,16 +23,18 @@ class ProcessDataForATC:
         self.data = data
         self.nlp_en: Language = spacy.load("en_core_web_sm")
         self.nlp_fr: Language = spacy.load("fr_core_news_sm")
+    def get_dataframe(self):
+        return self.data
     
-    def compute_trim_level(self,data:pd.DataFrame) -> pd.DataFrame:
+    def compute_trim_level(self) -> None:
         group_commercial_model = ["vehicle_make", "vehicle_model", "vehicle_commercial_name"]
         group_trim_level = group_commercial_model + ["vehicle_trim_level"]
 
-        data["vehicle_trim_level"] = data["vehicle_trim_level"].fillna(DEFAULT_VALUE_WHEN_NO_TRIM_LEVEL)
+        self.data["vehicle_trim_level"] = self.data["vehicle_trim_level"].fillna(DEFAULT_VALUE_WHEN_NO_TRIM_LEVEL)
 
-        df_trim_median_price = data.groupby(group_trim_level)["v_specs_price"].median().reset_index()
+        df_trim_median_price = self.data.groupby(group_trim_level)["v_specs_price"].median().reset_index()
         df_trim_median_price = df_trim_median_price.rename({"v_specs_price": "trim_price"}, axis=1)
-        df_comm_model_mean_price = data.groupby(group_commercial_model)["v_specs_price"].mean().reset_index()
+        df_comm_model_mean_price = self.data.groupby(group_commercial_model)["v_specs_price"].mean().reset_index()
         df_comm_model_mean_price = df_comm_model_mean_price.rename({"v_specs_price": "comm_model_price"}, axis=1)
         
         df_trim_scaled_price = df_trim_median_price.merge(df_comm_model_mean_price, how="left", on=group_commercial_model)
@@ -42,16 +44,14 @@ class ProcessDataForATC:
         dict_trim_level = df_trim_scaled_price.set_index(group_trim_level)["trim_level_normalized"].to_dict()
         dict_trim_level = defaultdict(lambda: 1.0, dict_trim_level)
 
-        data["vehicle_trim_level"] = data.apply(
+        self.data["vehicle_trim_level"] = self.data.apply(
             lambda row: dict_trim_level[(row[group_trim_level[0]], row[group_trim_level[1]], row[group_trim_level[2]], row[group_trim_level[3]])], axis=1
         )
-        return data
     
-    def clean_text_data(self ,data:pd.DataFrame, txt:str) -> pd.DataFrame:
+    def clean_text_data(self, txt:str) -> None:
         
-        str_columns = data.select_dtypes(exclude=['numbers']).columns
-        data[str_columns] = data[str_columns].apply(lambda x: x.str.lower())
-        return data
+        str_columns = self.data.select_dtypes(exclude=['numbers']).columns
+        self.data[str_columns] = self.data[str_columns].apply(lambda x: x.str.lower())
     
     def extract_first_two_digits(zip_code:str):
         return zip_code[:2]
@@ -185,37 +185,36 @@ class ProcessDataForATC:
         else:
             return 0
         
-    def handle_date(self, data:pd.DataFrame) -> pd.DataFrame:
-        data['vehicle_first_circulation_date_date'] = pd.to_datetime(data['vehicle_first_circulation_date'])
-        data['constructor_warranty_end_date_date'] = pd.to_datetime(data['constructor_warranty_end_date'])
-        data['date_snapshot_date'] = pd.to_datetime(data['date_snapshot'])
+    def handle_date(self) -> None:
+        self.data['vehicle_first_circulation_date_date'] = pd.to_datetime(self.data['vehicle_first_circulation_date'])
+        self.data['constructor_warranty_end_date_date'] = pd.to_datetime(self.data['constructor_warranty_end_date'])
+        self.data['date_snapshot_date'] = pd.to_datetime(self.data['date_snapshot'])
         
-        data['diff_warranty'] = (data['constructor_warranty_end_date_date'] - data['date_snapshot_date']).dt.days
-        data['diff_circulation'] = (data['date_snapshot_date']- data['vehicle_first_circulation_date_date']).dt.days
+        self.data['diff_warranty'] = (self.data['constructor_warranty_end_date_date'] - self.data['date_snapshot_date']).dt.days
+        self.data['diff_circulation'] = (self.data['date_snapshot_date']- self.data['vehicle_first_circulation_date_date']).dt.days
         
-        data1 = data[data['diff_circulation'].apply(lambda x: pd.notnull(x))]
-        data2 = data[data['diff_circulation'].apply(lambda x: not(pd.notnull(x)))]
+        data1 = self.data[self.data['diff_circulation'].apply(lambda x: pd.notnull(x))]
+        data2 = self.data[self.data['diff_circulation'].apply(lambda x: not(pd.notnull(x)))]
         data2['diff_circulation'] = (data2['date_snapshot_date'].apply(lambda x: x.year) - data2['vehicle_year'])*365
         
         data = pd.concat([data1,data2],axis=0) 
-        return data
+        self.data = data
     
-    def encoding_variables(self, data:pd.DataFrame) -> pd.DataFrame:
-        target_mean_comm = data.groupby('vehicle_commercial_name')['new_target'].mean()
-        data['vehicle_commercial_name_encoded'] = data['vehicle_commercial_name'].map(target_mean_comm)
+    def encoding_variables(self) -> None:
+        target_mean_comm = self.data.groupby('vehicle_commercial_name')['new_target'].mean()
+        self.data['vehicle_commercial_name_encoded'] = self.data['vehicle_commercial_name'].map(target_mean_comm)
 
-        target_mean_model = data.groupby('vehicle_model')['new_target'].mean()
-        data['vehicle_model_encoded'] = data['vehicle_model'].map(target_mean_model)
+        target_mean_model = self.data.groupby('vehicle_model')['new_target'].mean()
+        self.data['vehicle_model_encoded'] = self.data['vehicle_model'].map(target_mean_model)
 
-        target_mean_adj = data.groupby('adjectives')['new_target'].mean()
-        data['vehicle_adj_encoded'] = data['adjectives'].map(target_mean_adj)
+        target_mean_adj = self.data.groupby('adjectives')['new_target'].mean()
+        self.data['vehicle_adj_encoded'] = self.data['adjectives'].map(target_mean_adj)
 
-        target_mean_motor = data.groupby('motor_type')['new_target'].mean()
-        data['vehicle_motor_encoded'] = data['motor_type'].map(target_mean_motor)
+        target_mean_motor = self.data.groupby('motor_type')['new_target'].mean()
+        self.data['vehicle_motor_encoded'] = self.data['motor_type'].map(target_mean_motor)
 
-        target_mean_make = data.groupby('vehicle_make')['new_target'].mean()
-        data['vehicle_make_encoded'] = data['vehicle_make'].map(target_mean_make)
-        return data
+        target_mean_make = self.data.groupby('vehicle_make')['new_target'].mean()
+        self.data['vehicle_make_encoded'] = self.data['vehicle_make'].map(target_mean_make)
     
 
 
@@ -236,5 +235,5 @@ if __name__ == "__main__":
         data = pd.read_csv(data_path)
         return data
 
-    data = load_data('final_ann_post_treatment.csv')
-    
+    data = load_data('final_ann_post_treatment.csv')[0:500]
+    process = ProcessDataForATC()
