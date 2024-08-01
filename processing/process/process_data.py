@@ -23,6 +23,7 @@ class ProcessDataForATC:
         self.data = data
         self.nlp_en: Language = spacy.load("en_core_web_sm")
         self.nlp_fr: Language = spacy.load("fr_core_news_sm")
+
     def get_dataframe(self):
         return self.data
     
@@ -236,4 +237,15 @@ if __name__ == "__main__":
         return data
 
     data = load_data('final_ann_post_treatment.csv')[0:500]
-    process = ProcessDataForATC()
+    process = ProcessDataForATC(data)
+    process.compute_trim_level()
+    process.clean_text_data()
+    process.extract_first_two_digits()
+    process.process_color()
+    process.extract_motor_type()
+    process.handle_opt()
+    process.is_options()
+    process.handle_date()
+    process.encoding_variables()
+    df = process.get_dataframe()
+    print(df.head())
