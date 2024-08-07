@@ -38,9 +38,17 @@ class ProcessDataForATC:
         return self.data
     
     def compute_trim_level(self) -> None:
+        """
+        For every trim-level (finition), it computes the median price_new of the finition scaled with respect to other
+        finitions in a given commercial model.
+            - trim_price_normalized = 1 means finition price that equals the mean price of the average price.
+            - trim_price_normalized < 1 shows a very basic finition lower the average price.
+            - trim_price_normalized > 1 shows a more expensive finition above the average price
+        """
         group_commercial_model = ["vehicle_make", "vehicle_model", "vehicle_commercial_name"]
         group_trim_level = group_commercial_model + ["vehicle_trim_level"]
 
+        # computes the trim_price (finition) median price and commercial model price
         self.data["vehicle_trim_level"] = self.data["vehicle_trim_level"].fillna(self.DEFAULT_VALUE_WHEN_NO_TRIM_LEVEL)
 
         df_trim_median_price = self.data.groupby(group_trim_level)["v_specs_price"].median().reset_index()
@@ -48,6 +56,7 @@ class ProcessDataForATC:
         df_comm_model_mean_price = self.data.groupby(group_commercial_model)["v_specs_price"].mean().reset_index()
         df_comm_model_mean_price = df_comm_model_mean_price.rename({"v_specs_price": "comm_model_price"}, axis=1)
         
+        # get trim-price normalized
         df_trim_scaled_price = df_trim_median_price.merge(df_comm_model_mean_price, how="left", on=group_commercial_model)
         df_trim_scaled_price["trim_level_normalized"] = df_trim_scaled_price["trim_price"] / (df_trim_scaled_price["comm_model_price"] + 1e-6)
         df_trim_scaled_price["trim_level_normalized"] = df_trim_scaled_price["trim_level_normalized"].fillna(1.0) 
@@ -55,27 +64,43 @@ class ProcessDataForATC:
         dict_trim_level = df_trim_scaled_price.set_index(group_trim_level)["trim_level_normalized"].to_dict()
         dict_trim_level = defaultdict(lambda: 1.0, dict_trim_level)
 
+        # store the trim_price_normalized as a default dict to handle unknown finitions
         self.data["vehicle_trim_level"] = self.data.apply(
             lambda row: dict_trim_level[(row[group_trim_level[0]], row[group_trim_level[1]], row[group_trim_level[2]], row[group_trim_level[3]])], axis=1
         )
     def clean_type_data(self) -> None:
+        """
+        Allow to clean data type of multiple numerical columns categorized as object
+        """
         self.data = self.data.loc[:, ~self.data.columns.str.contains('^Unnamed')]
         object_columns = self.data[self.num_variables].select_dtypes(include=['object']).columns
         self.data[object_columns] = self.data[object_columns].astype(float)
 
     def treatment_bad_import(self) -> None:
+        """
+        Handle the case where the columns are badly delimited and imported. 
+        """
         col_name = 'vehicle_rated_horse_power'
         self.data[col_name] = pd.to_numeric(self.data[col_name], errors='coerce')
         self.data = self.data.dropna(subset=[col_name])
 
     def clean_text_data(self) -> None:
+        """
+        Clean text data: lower values
+        """
         str_columns = self.data.select_dtypes(exclude=['number']).columns
         self.data[str_columns] = self.data[str_columns].apply(lambda x: x.str.lower())
     
     def extract_first_two_digits(self, zip_code:str) -> str:
+        """"
+        Extract the department from zip code
+        """
         return zip_code[:2]
 
     def detect_language(self, sentence:str) -> str:
+        """
+        Allow to detect the language of a string 
+        """
         try:
             lang = detect(sentence)
             return lang
@@ -83,6 +108,9 @@ class ProcessDataForATC:
             return "Unknown"
 
     def extract_and_translate_colors(self, text:str) -> Tuple[str, str]:
+        """
+        
+        """
         text = str(text)
         # Regular expression pattern to match common color names in English and French
         color_pattern = re.compile(r'\b(' + '|'.join(self.color_dict.keys()) + r')\b', flags=re.IGNORECASE)
@@ -99,6 +127,9 @@ class ProcessDataForATC:
     
 
     def extract_adjectives_3plus(self, text:str) -> str:
+        """
+        
+        """
         language = self.detect_language(text)
         adjectives = []
         # Load the spaCy model for the specified language
@@ -147,6 +178,13 @@ class ProcessDataForATC:
         return adjectives
 
     def process_color(self, text:str) -> Tuple[str, str]:
+        """
+        Allow to extract the color and the adjective (if exists) from a string
+        3 cases: 
+            - if the length of the split string is 1 then the word is the color 
+            - if the length of the split string is 2 then one word is the color and the other is the adjective
+            - if the length of the split string is 3 or more then we firt extract and remove the color, and we apply the function extracting the adjectives. 
+        """
         if isinstance(text,str):
             list_text=  text.split(' ')
             if len(list_text) == 1:
@@ -174,6 +212,9 @@ class ProcessDataForATC:
             return None,None
     
     def extract_motor_type(self,motorization:str) -> str:
+        """
+        Extract from the vehicle_motorization the motor_type
+        """
         if pd.isnull(motorization):
             return None
         parts = motorization.split()
@@ -182,6 +223,9 @@ class ProcessDataForATC:
         return parts[1]
 
     def handle_opt(self,options:str) -> str:
+        """
+        function to keep the correctly formated options (as a list)
+        """
         opt = str(options)
         if opt.startswith('[') and opt.endswith(']'):
             return options
@@ -189,12 +233,20 @@ class ProcessDataForATC:
             return '[]'
         
     def is_options(self,list_opt:List[str]) ->  int:
+        """
+        check if there are options or not according to options length
+        """
         if len(list_opt):
             return 1
         else:
             return 0
         
     def handle_date(self) -> None:
+        """
+        Instead of keeping the dates (vehicle_first_circulation_date and constructor_warranty_end_date), we compute the time in days to the date_snapshot.
+        For vehicle_first_circulation_date, we split the dataset where the difference computed is null and not null. When it's null, we use the vehicle_year 
+        instead of the vehicle_first_circulation_date.
+        """
         self.data['vehicle_first_circulation_date_date'] = pd.to_datetime(self.data['vehicle_first_circulation_date'])
         self.data['constructor_warranty_end_date_date'] = pd.to_datetime(self.data['constructor_warranty_end_date'])
         self.data['date_snapshot_date'] = pd.to_datetime(self.data['date_snapshot'])
@@ -210,6 +262,9 @@ class ProcessDataForATC:
         self.data = data
     
     def encoding_variables(self) -> None:
+        """
+        Target (new_target:score atc) encoding of multiple categorical variables with a lot of category. 
+        """
         target_mean_comm = self.data.groupby('vehicle_commercial_name')['new_target'].mean()
         self.data['vehicle_commercial_name_encoded'] = self.data['vehicle_commercial_name'].map(target_mean_comm)
 
@@ -226,6 +281,9 @@ class ProcessDataForATC:
         self.data['vehicle_make_encoded'] = self.data['vehicle_make'].map(target_mean_make)
 
     def create_boolean(self, nb:int) -> bool:
+        """
+        Create a boolean when the number (value) is > 0 (or not).
+        """
         if nb > 0:
             return 1
         else:
@@ -233,6 +291,18 @@ class ProcessDataForATC:
 
         
     def create_kpi_score(self):
+        """
+        Creation of some KPIs:
+            - listing_to_ic: nb_ic / nb_listing
+            - listing_to_detail: nb_detail / nb_listing
+            - detail_to_ic: nb_ic / nb_detail
+            - at_least_one_detail: if nb_detail > 0 =>  1
+            - at_least_one_ic: if nb_ic > 0 =>  1 (target of one model)
+            - nb_log_ic: log(1+IC) since IC is skewed positively
+            - nb_log_detail: log(1+detail) since detail is skewed positively
+            - nb_log_listing: log(1+listing) since listing is skewed positively
+            - new_target: (100*log(1+IC)+0.5*log(1+detail))/(log(1+listing))
+        """
         self.data['listing_to_ic'] = (self.data['nb_ic'] / self.data['nb_listing']).round(4)
         self.data['listing_to_detail'] = (df['nb_detail'] / self.data['nb_listing']).round(4)
         self.data['detail_to_ic'] = (self.data['nb_ic'] / self.data['nb_detail']).round(4)
@@ -279,6 +349,7 @@ if __name__ == "__main__":
     df['motor_type'] = df['vehicle_motorization'].apply(lambda x: process.extract_motor_type(x))
     
     df['options'] = df['options'].apply(lambda x: process.handle_opt(x))
+    df['options'] = df['options'].apply(ast.literal_eval)
     df['options'] = df['options'].apply(lambda x: process.is_options(x))
 
     process.data = df 
