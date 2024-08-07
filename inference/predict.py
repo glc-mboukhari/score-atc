@@ -4,16 +4,18 @@ import boto3
 from botocore.exceptions import NoCredentialsError, PartialCredentialsError
 from load_model import ModelLoader
 import pandas as pd
-from models.primary_model import PrimaryModel
-from models.secondary_models import SecondaryModels
+from models.model_lead_nolead import PrimaryModel
+from models.model_regressor import SecondaryModels
+
+DYNAMO_TABLE_NAME = "TEST"
 
 class ModelManager:
     def __init__(self, primary_model_path: str, secondary_models_paths: Dict[int, str]):
         self.primary_model = PrimaryModel(model_path=primary_model_path)
         self.secondary_models = SecondaryModels(models_paths=secondary_models_paths)
-        self.dynamodb_table_name = dynamodb_table_name
+        self.dynamodb_table_name = DYNAMO_TABLE_NAME
         self.dynamodb = boto3.resource('dynamodb')
-        self.table = self.dynamodb.Table(dynamodb_table_name)
+        self.table = self.dynamodb.Table(DYNAMO_TABLE_NAME)
 
     def manage_prediction(self, data: pd.DataFrame) -> pd.DataFrame:
         # Get primary model predictions

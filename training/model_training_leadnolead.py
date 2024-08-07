@@ -1,10 +1,10 @@
 import catboost
 import pandas as pd
-from catboost import CatBoostRegressor
+from catboost import CatBoostClassifier
 from typing import Tuple
 import boto3
 
-class ModelTrainer:
+class TrainPrimaryModel:
     def __init__(self, model_save_path: str):
         self.model_save_path = model_save_path
 
@@ -15,13 +15,12 @@ class ModelTrainer:
 
     def train(self) -> None:
         data = self.load_data()
-        X = data.drop(columns=['target'])
-        y = data['target']
-        model = CatBoostRegressor(iterations=1000, depth=6, learning_rate=0.1, loss_function='Logloss')
+        X = data.drop(columns=['new_target'])
+        y = data['new_target']
+        model = CatBoostClassifier(iterations=1000, depth=6, learning_rate=0.1, loss_function='Logloss')
         model.fit(X, y)
         model.save_model(self.model_save_path)
 
-
-    def save_model(self, model: CatBoostRegressor) -> None:
+    def save_model(self, model: CatBoostClassifier) -> None:
         model.save_model(self.model_save_path)
 
