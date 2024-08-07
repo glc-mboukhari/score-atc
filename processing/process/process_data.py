@@ -7,9 +7,17 @@ import re
 from langdetect import detect
 from spacy.language import Language
 import ast
+import numpy as np
 
 DEFAULT_VALUE_WHEN_NO_TRIM_LEVEL = ""
-color_dict = {
+
+
+class ProcessDataForATC:
+    def __init__(self, data:pd.DataFrame):
+        self.data = data
+        self.nlp_en = spacy.load("en_core_web_sm")
+        self.nlp_fr = spacy.load("fr_core_news_sm")
+        self.color_dict = {
         'blue': 'bleu', 'red': 'rouge', 'green': 'vert', 'yellow': 'jaune', 'orange': 'orange',
         'purple': 'violet', 'pink': 'rose', 'gray': 'gris', 'grey': 'gris',
         'black': 'noir', 'white': 'blanc', 'brown': 'marron',
@@ -17,12 +25,14 @@ color_dict = {
         'violet': 'violet', 'rose': 'rose', 'gris': 'gris', 'noir': 'noir', 'blanc': 'blanc',
         'marron': 'marron'
     }
-
-class ProcessDataForATC:
-    def __init__(self, data:pd.DataFrame):
-        self.data = data
-        self.nlp_en: Language = spacy.load("en_core_web_sm")
-        self.nlp_fr: Language = spacy.load("fr_core_news_sm")
+        self.DEFAULT_VALUE_WHEN_NO_TRIM_LEVEL = ""
+        self.num_variables = ['initial_price','vehicle_co2','price','vehicle_year','pictures_data_count_valid_photosphere','pictures_data_count_valid','vehicle_doors','vehicle_power_din',
+                 'vehicle_rated_horse_power','vehicle_cubic','vehicle_trunk_volume','pictures_data_count_valid360_exterieur','vehicle_length',
+                 'vehicle_height','vehicle_weight','vehicle_brut_quotation','good_deal_rate','vehicle_refined_quotation','vehicle_mileage','vehicle_average_mileage',
+                 'vehicle_seats','pictures_data_count','nb_options','total_options_price','nb_ic','nb_listing','nb_detail','nb_place_parking','total_price','total_price_hors_option','vehicle_trim_level','network_warranty_duration','vehicle_owners']
+        self.cat_variables = ['vehicle_gearbox','vehicle_make','vehicle_external_color','vehicle_energy','vehicle_first_hand','zip_code','vehicle_model','autoviza_display','vehicle_commercial_name'
+                 ,'vehicle_internal_color','vehicle_version','vehicle_category','good_deal_badge','mileage_badge','vehicle_pollution_norm','vehicle_crit_air','vehicle_reliability_index','customer_type','mileage_badge_value','good_deal_badge_value','constructor_warranty_end_date',
+                 'vehicle_condition','vehicle_motorization','vehicle_trim_level','options','ccl_type_de_bien','niveau_pack','selection_pack']
 
     def get_dataframe(self):
         return self.data
@@ -31,7 +41,7 @@ class ProcessDataForATC:
         group_commercial_model = ["vehicle_make", "vehicle_model", "vehicle_commercial_name"]
         group_trim_level = group_commercial_model + ["vehicle_trim_level"]
 
-        self.data["vehicle_trim_level"] = self.data["vehicle_trim_level"].fillna(DEFAULT_VALUE_WHEN_NO_TRIM_LEVEL)
+        self.data["vehicle_trim_level"] = self.data["vehicle_trim_level"].fillna(self.DEFAULT_VALUE_WHEN_NO_TRIM_LEVEL)
 
         df_trim_median_price = self.data.groupby(group_trim_level)["v_specs_price"].median().reset_index()
         df_trim_median_price = df_trim_median_price.rename({"v_specs_price": "trim_price"}, axis=1)
@@ -48,49 +58,47 @@ class ProcessDataForATC:
         self.data["vehicle_trim_level"] = self.data.apply(
             lambda row: dict_trim_level[(row[group_trim_level[0]], row[group_trim_level[1]], row[group_trim_level[2]], row[group_trim_level[3]])], axis=1
         )
-    
-    def clean_text_data(self, txt:str) -> None:
-        
-        str_columns = self.data.select_dtypes(exclude=['numbers']).columns
+    def clean_type_data(self) -> None:
+        self.data = self.data.loc[:, ~self.data.columns.str.contains('^Unnamed')]
+        object_columns = self.data[self.num_variables].select_dtypes(include=['object']).columns
+        self.data[object_columns] = self.data[object_columns].astype(float)
+
+    def treatment_bad_import(self) -> None:
+        col_name = 'vehicle_rated_horse_power'
+        self.data[col_name] = pd.to_numeric(self.data[col_name], errors='coerce')
+        self.data = self.data.dropna(subset=[col_name])
+
+    def clean_text_data(self) -> None:
+        str_columns = self.data.select_dtypes(exclude=['number']).columns
         self.data[str_columns] = self.data[str_columns].apply(lambda x: x.str.lower())
     
-    def extract_first_two_digits(zip_code:str):
+    def extract_first_two_digits(self, zip_code:str) -> str:
         return zip_code[:2]
 
-    def detect_language(sentence:str) -> str:
+    def detect_language(self, sentence:str) -> str:
         try:
             lang = detect(sentence)
             return lang
         except:
             return "Unknown"
 
-    def extract_and_translate_colors(text:str) -> Tuple[str, str]:
-        color_dict = {
-            'blue': 'bleu', 'red': 'rouge', 'green': 'vert', 'yellow': 'jaune', 'orange': 'orange',
-            'purple': 'violet', 'pink': 'rose', 'gray': 'gris', 'grey': 'gris',
-            'black': 'noir', 'white': 'blanc', 'brown': 'marron',
-            'bleu': 'bleu', 'rouge': 'rouge', 'vert': 'vert', 'jaune': 'jaune', 'orange': 'orange',
-            'violet': 'violet', 'rose': 'rose', 'gris': 'gris', 'noir': 'noir', 'blanc': 'blanc',
-            'marron': 'marron'
-            # Add more color translations as needed
-        }
-
+    def extract_and_translate_colors(self, text:str) -> Tuple[str, str]:
         text = str(text)
         # Regular expression pattern to match common color names in English and French
-        color_pattern = re.compile(r'\b(' + '|'.join(color_dict.keys()) + r')\b', flags=re.IGNORECASE)
+        color_pattern = re.compile(r'\b(' + '|'.join(self.color_dict.keys()) + r')\b', flags=re.IGNORECASE)
 
         # Find all color matches in the text
         colors = color_pattern.findall(text)
         color = colors[0]
 
         # Translate colors to French
-        translated_colors = [color_dict[color.lower()] for color in colors]
+        translated_colors = [self.color_dict[color.lower()] for color in colors]
         translated_color = translated_colors[0]
 
         return color,translated_color
     
 
-    def extract_adjectives_3plus(self,text:str) -> str:
+    def extract_adjectives_3plus(self, text:str) -> str:
         language = self.detect_language(text)
         adjectives = []
         # Load the spaCy model for the specified language
@@ -138,12 +146,12 @@ class ProcessDataForATC:
 
         return adjectives
 
-    def process_color(self, text,color_dict,nlp_fr,nlp_en):
+    def process_color(self, text:str) -> Tuple[str, str]:
         if isinstance(text,str):
             list_text=  text.split(' ')
             if len(list_text) == 1:
                 try:
-                    color = color_dict[text]
+                    color = self.color_dict[text]
                 except:
                     color = list_text[0]
                 adj = None
@@ -160,7 +168,7 @@ class ProcessDataForATC:
                     color,translated_color = self.extract_and_translate_colors(text)
                 except:
                     color, translated_color = list_text[0],list_text[0]
-                adj = self.extract_adjectives_3plus(text.replace(color,'').strip(),nlp_fr,nlp_en)[0]
+                adj = self.extract_adjectives_3plus(text.replace(color,'').strip())[0]
                 return translated_color,adj
         else:
             return None,None
@@ -216,8 +224,27 @@ class ProcessDataForATC:
 
         target_mean_make = self.data.groupby('vehicle_make')['new_target'].mean()
         self.data['vehicle_make_encoded'] = self.data['vehicle_make'].map(target_mean_make)
-    
 
+    def create_boolean(self, nb:int) -> bool:
+        if nb > 0:
+            return 1
+        else:
+            return 0
+
+        
+    def create_kpi_score(self):
+        self.data['listing_to_ic'] = (self.data['nb_ic'] / self.data['nb_listing']).round(4)
+        self.data['listing_to_detail'] = (df['nb_detail'] / self.data['nb_listing']).round(4)
+        self.data['detail_to_ic'] = (self.data['nb_ic'] / self.data['nb_detail']).round(4)
+
+        self.data['at_least_one_detail'] = self.data['nb_detail'].apply(lambda x: self.create_boolean(x))
+        self.data['at_least_one_ic'] = self.data['nb_ic'].apply(lambda x: self.create_boolean(x))
+
+        self.data['nb_log_ic'] = np.log1p(self.data['nb_ic'])
+        self.data['nb_log_detail'] = np.log1p(self.data['nb_detail'])
+        self.data['nb_log_listing'] = np.log1p(self.data['nb_listing'])
+
+        self.data['new_target'] = (100*self.data['nb_log_ic'] + 0.5*self.data['nb_log_detail'])/(self.data['nb_log_listing'])
 
 if __name__ == "__main__":
     from pathlib import Path
@@ -236,16 +263,31 @@ if __name__ == "__main__":
         data = pd.read_csv(data_path)
         return data
 
-    data = load_data('final_ann_post_treatment.csv')[0:500]
+    data = load_data('final_ann_nov_2023_april_2024.csv')
+    
     process = ProcessDataForATC(data)
     process.compute_trim_level()
+    process.treatment_bad_import()
+    process.clean_type_data()
     process.clean_text_data()
-    process.extract_first_two_digits()
-    process.process_color()
-    process.extract_motor_type()
-    process.handle_opt()
-    process.is_options()
+    df = process.get_dataframe()[0:1000]
+    
+    df['dpt'] = df['zip_code'].apply(process.extract_first_two_digits)
+    
+    df[['color','adjectives']] = df['vehicle_external_color'].apply(lambda x: pd.Series(process.process_color(x)))
+    
+    df['motor_type'] = df['vehicle_motorization'].apply(lambda x: process.extract_motor_type(x))
+    
+    df['options'] = df['options'].apply(lambda x: process.handle_opt(x))
+    df['options'] = df['options'].apply(lambda x: process.is_options(x))
+
+    process.data = df 
+
     process.handle_date()
+    
+    process.create_kpi_score()
+
     process.encoding_variables()
+
     df = process.get_dataframe()
     print(df.head())
