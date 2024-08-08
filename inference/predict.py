@@ -23,13 +23,23 @@ class ModelManager:
         self.table = self.dynamodb.Table(self.dynamodb_table_name)
         self.data = data
             
+    def load_data(self) -> pd.DataFrame:
+        s3 = boto3.client('s3')
+        obj = s3.get_object(Bucket=self.s3_bucket, Key=self.s3_key)
+        return pd.read_csv(obj['Body'])
+    
     def remove_columns_inference(self):
         list_columns_to_remove = ['reference','date_snapshot','first_online_date','owner_correlation_id','vehicle_id','year','day','month','v_start_date','v_end_date','vehicle_internal_color','vehicle_external_color', 'options',
                           'vehicle_version_id','customer_type','vehicle_motorization','vehicle_version', 'zip_code',
                           'vehicle_first_circulation_date','constructor_warranty_end_date', 'vehicle_first_circulation_date_date','constructor_warranty_end_date_date','date_snapshot_date','vehicle_commercial_name','good_deal_badge_value','mileage_badge_value','ccl_type_de_bien',
                           'price','pictures_data_count','vehicle_rated_horse_power','manufacturer_warranty_duration','total_price_hors_option','vehicle_model','adjectives','motor_type','vehicle_make','selection_pack']
         self.data.drop(list_columns_to_remove,axis=1,inplace=True)
-    
+
+    def convert_to_category(self) :
+        cats = self.data.select_dtypes(exclude=np.number).columns.tolist()
+        for col in cats:
+            self.data[col] = self.data[col].astype('category')
+
     def manage_prediction(self, data: pd.DataFrame) -> pd.DataFrame:
         # Get primary model predictions
         primary_predictions = self.primary_model.predict(data)
@@ -65,8 +75,6 @@ if __name__ == "__main__":
     new_data = new_data.loc[:, ~new_data.columns.str.contains('^Unnamed')]
     manager = ModelManager(primary_model_path=primary_model_path, secondary_models_paths=secondary_models_paths,data=new_data)
     manager.remove_columns_inference()
-    cats = new_data.select_dtypes(exclude=np.number).columns.tolist()
-    for col in cats:
-        manager.data[col] = manager.data[col].astype('category')
+    manager.convert_to_category()
     final_predictions = manager.manage_prediction(new_data)
     print(final_predictions)

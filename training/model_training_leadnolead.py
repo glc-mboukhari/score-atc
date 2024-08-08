@@ -26,8 +26,6 @@ class TrainPrimaryModel:
                           'price','pictures_data_count','vehicle_rated_horse_power','manufacturer_warranty_duration','total_price_hors_option','vehicle_model','adjectives','motor_type','vehicle_make','selection_pack']
         self.data.drop(list_columns_to_remove,axis=1,inplace=True)
 
-
-
     def train(self) -> None:
         data = self.load_data()
         X = data.drop(columns=['new_target'])
