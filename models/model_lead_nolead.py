@@ -1,20 +1,12 @@
 import pandas as pd
 from catboost import CatBoostClassifier
 import pickle,os
-'''
-class PrimaryModel:
-    def __init__(self, model_path: str):
-        self.model_path = model_path
-        self.model = CatBoostRegressor()
-        self.model.load_model(self.model_path)
+import sys
+import os
 
-    def predict(self, data: pd.DataFrame) -> pd.Series:
-        return self.model.predict(data)
-'''
 class PrimaryModel:
     def __init__(self, model_path: str):
         self.model_path = model_path
-        
         if not os.path.exists(self.model_path):
             raise FileNotFoundError(f"The model file does not exist at the specified path: {self.model_path}")
         try:

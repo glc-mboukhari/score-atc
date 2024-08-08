@@ -109,7 +109,7 @@ class ProcessDataForATC:
 
     def extract_and_translate_colors(self, text:str) -> Tuple[str, str]:
         """
-        
+        Identify, extract and translate the color using a dictionary and patterns. 
         """
         text = str(text)
         # Regular expression pattern to match common color names in English and French
@@ -128,7 +128,7 @@ class ProcessDataForATC:
 
     def extract_adjectives_3plus(self, text:str) -> str:
         """
-        
+        Extract adjectives when the length of the string splitted is higher than 3
         """
         language = self.detect_language(text)
         adjectives = []
@@ -261,24 +261,28 @@ class ProcessDataForATC:
         data = pd.concat([data1,data2],axis=0) 
         self.data = data
     
-    def encoding_variables(self) -> None:
+    def encoding_variables(self, is_training:bool) -> None:
         """
         Target (new_target:score atc) encoding of multiple categorical variables with a lot of category. 
         """
-        target_mean_comm = self.data.groupby('vehicle_commercial_name')['new_target'].mean()
-        self.data['vehicle_commercial_name_encoded'] = self.data['vehicle_commercial_name'].map(target_mean_comm)
+        if is_training:
+            target_mean_comm = self.data.groupby('vehicle_commercial_name')['new_target'].mean()
+            self.data['vehicle_commercial_name_encoded'] = self.data['vehicle_commercial_name'].map(target_mean_comm)
 
-        target_mean_model = self.data.groupby('vehicle_model')['new_target'].mean()
-        self.data['vehicle_model_encoded'] = self.data['vehicle_model'].map(target_mean_model)
+            target_mean_model = self.data.groupby('vehicle_model')['new_target'].mean()
+            self.data['vehicle_model_encoded'] = self.data['vehicle_model'].map(target_mean_model)
 
-        target_mean_adj = self.data.groupby('adjectives')['new_target'].mean()
-        self.data['vehicle_adj_encoded'] = self.data['adjectives'].map(target_mean_adj)
+            target_mean_adj = self.data.groupby('adjectives')['new_target'].mean()
+            self.data['vehicle_adj_encoded'] = self.data['adjectives'].map(target_mean_adj)
 
-        target_mean_motor = self.data.groupby('motor_type')['new_target'].mean()
-        self.data['vehicle_motor_encoded'] = self.data['motor_type'].map(target_mean_motor)
+            target_mean_motor = self.data.groupby('motor_type')['new_target'].mean()
+            self.data['vehicle_motor_encoded'] = self.data['motor_type'].map(target_mean_motor)
 
-        target_mean_make = self.data.groupby('vehicle_make')['new_target'].mean()
-        self.data['vehicle_make_encoded'] = self.data['vehicle_make'].map(target_mean_make)
+            target_mean_make = self.data.groupby('vehicle_make')['new_target'].mean()
+            self.data['vehicle_make_encoded'] = self.data['vehicle_make'].map(target_mean_make)
+        else:
+            #ADD COMPUTE ENCODED VARIABLE FOR INFERENCE
+            pass
 
     def create_boolean(self, nb:int) -> bool:
         """
@@ -289,32 +293,20 @@ class ProcessDataForATC:
         else:
             return 0
 
-        
-    def create_kpi_score(self):
-        """
-        Creation of some KPIs:
-            - listing_to_ic: nb_ic / nb_listing
-            - listing_to_detail: nb_detail / nb_listing
-            - detail_to_ic: nb_ic / nb_detail
-            - at_least_one_detail: if nb_detail > 0 =>  1
-            - at_least_one_ic: if nb_ic > 0 =>  1 (target of one model)
-            - nb_log_ic: log(1+IC) since IC is skewed positively
-            - nb_log_detail: log(1+detail) since detail is skewed positively
-            - nb_log_listing: log(1+listing) since listing is skewed positively
-            - new_target: (100*log(1+IC)+0.5*log(1+detail))/(log(1+listing))
-        """
-        self.data['listing_to_ic'] = (self.data['nb_ic'] / self.data['nb_listing']).round(4)
-        self.data['listing_to_detail'] = (df['nb_detail'] / self.data['nb_listing']).round(4)
-        self.data['detail_to_ic'] = (self.data['nb_ic'] / self.data['nb_detail']).round(4)
+    def handling_missing_values(self):
+        '''
+        Handle missing values and delete repetitive information (columns), irrelevant (ids) and most correlated variables.
+        '''
+        df = self.get_dataframe()
+        col_pictures= ['pictures_data_count_valid360_exterieur','pictures_data_count','pictures_data_count_valid_photosphere','pictures_data_count_valid']
+        df[col_pictures] = df[col_pictures].fillna(0)
 
-        self.data['at_least_one_detail'] = self.data['nb_detail'].apply(lambda x: self.create_boolean(x))
-        self.data['at_least_one_ic'] = self.data['nb_ic'].apply(lambda x: self.create_boolean(x))
+        categorical_columns = df.select_dtypes(include=['object', 'category', 'string']).columns.tolist()
+        df[categorical_columns] = df[categorical_columns].fillna('Unknown')
+        mean_warranty = df['diff_warranty'].mean()
+        df['diff_warranty'].fillna(mean_warranty,inplace=True)
 
-        self.data['nb_log_ic'] = np.log1p(self.data['nb_ic'])
-        self.data['nb_log_detail'] = np.log1p(self.data['nb_detail'])
-        self.data['nb_log_listing'] = np.log1p(self.data['nb_listing'])
-
-        self.data['new_target'] = (100*self.data['nb_log_ic'] + 0.5*self.data['nb_log_detail'])/(self.data['nb_log_listing'])
+        self.data = df
 
 if __name__ == "__main__":
     from pathlib import Path
@@ -358,7 +350,12 @@ if __name__ == "__main__":
     
     process.create_kpi_score()
 
-    process.encoding_variables()
+    # à tester
+    process.encoding_variables(is_training=True)
+
+    print(process.data.shape)
+    process.handling_missing_values()
+    print(process.data.shape)
 
     df = process.get_dataframe()
     print(df.head())
