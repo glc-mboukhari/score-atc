@@ -52,6 +52,46 @@ class ModelManager:
 
     def manage_prediction(self, data: pd.DataFrame) -> pd.DataFrame:
         # Get primary model predictions
+        data_w_ref = data.copy()
+
+        #ATTENTION ICI
+        enc = self.primary_model.encoder
+        data = enc.transform(data)
+        data = self.remove_columns_inference(data)
+
+        primary_predictions = self.primary_model.predict(data)
+        data_w_ref['primary_prediction'] = primary_predictions
+
+        
+        data_0 = data[data['primary_prediction'] <= 0.5]
+        data_not_0 = data[data['primary_prediction'] > 0.5]
+
+        data_0_w_ref = data_0.copy()
+        data_not_w_ref = data_not_0.copy()
+
+        data_0 = self.remove_columns_inference(data_0)
+        data_not_0 = self.remove_columns_inference(data_not_0)
+
+        enc_0 = self.secondary_models.encoders[0]
+        enc_1 = self.secondary_models.encoders[1]
+
+        data_0 = enc_0.transform(data_0)
+        data_not_0 = enc_1.transform(data_not_0)
+
+        secondary_predictions_0 = self.secondary_models.models[0].predict(data_0)
+        secondary_predictions_1 = self.secondary_models.models[1].predict(data_not_0)
+
+        data_0_w_ref['secondary_predictions'] = secondary_predictions_0
+        data_not_w_ref['secondary_predictions'] = secondary_predictions_1
+
+        data_0_w_ref = data_0_w_ref[['reference','date_snapshot','secondary_predictions']]
+        data_not_w_ref = data_not_w_ref[['reference','date_snapshot','secondary_predictions']]
+
+        final_data = pd.concat([data_0_w_ref,data_not_w_ref],axis=0)
+        return final_data
+        
+    def manage_prediction(self, data: pd.DataFrame) -> pd.DataFrame:
+        # Get primary model predictions
         primary_predictions = self.primary_model.predict(data)
 
         # Use primary predictions to select the appropriate secondary model
