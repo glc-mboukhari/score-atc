@@ -2,25 +2,13 @@ import pandas as pd
 from catboost import CatBoostRegressor
 from typing import Dict
 import pickle, os
+from processing.process.encoding import CategoryEncoder
 
-'''
 class SecondaryModels:
     def __init__(self, models_paths: Dict[int, str]):
         self.models_paths = models_paths
         self.models = self._load_models()
-
-    def _load_models(self) -> Dict[int, CatBoostClassifier]:
-        models = {}
-        for key, path in self.models_paths.items():
-            model = CatBoostClassifier()
-            model.load_model(path)
-            models[key] = model
-        return models
-'''
-class SecondaryModels:
-    def __init__(self, models_paths: Dict[int, str]):
-        self.models_paths = models_paths
-        self.models = self._load_models()
+        self.encoders = self._load_encoders()
 
     def _load_models(self) -> Dict[int, CatBoostRegressor]:
         models = {}
@@ -30,12 +18,27 @@ class SecondaryModels:
                 raise FileNotFoundError(f"The model file does not exist at the specified path: {path}")
             try:
                 with open(path, 'rb') as file:
-                    model = pickle.load(file)
+                    model = pickle.load(file)[0]
                 print(f"Model loaded successfully from {path}")
             except Exception as e:
                 raise ValueError(f"Error loading model from {path}: {e}")
             models[key] = model
         return models
+
+    def _load_encoders(self) -> Dict[int, CategoryEncoder]:
+        encoders = {}
+        for key, path in self.models_paths.items():
+            print(path)
+            if not os.path.exists(path):
+                raise FileNotFoundError(f"The model file does not exist at the specified path: {path}")
+            try:
+                with open(path, 'rb') as file:
+                    encoder = pickle.load(file)[1]
+                print(f"Model loaded successfully from {path}")
+            except Exception as e:
+                raise ValueError(f"Error loading model from {path}: {e}")
+            encoders[key] = encoder
+        return encoders
 
     def predict(self, model_key: int, data: pd.DataFrame) -> pd.Series:
         model = self.models.get(model_key)

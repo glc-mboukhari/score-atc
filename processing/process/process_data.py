@@ -13,10 +13,14 @@ DEFAULT_VALUE_WHEN_NO_TRIM_LEVEL = ""
 
 
 class ProcessDataForATC:
-    def __init__(self, data:pd.DataFrame):
+    def __init__(self, data:pd.DataFrame, mode: str):
+        '''
+        Initialize the processor with the mode: 'train' or 'inference'.
+        '''
         self.data = data
         self.nlp_en = spacy.load("en_core_web_sm")
         self.nlp_fr = spacy.load("fr_core_news_sm")
+        self.mode = mode
         self.color_dict = {
         'blue': 'bleu', 'red': 'rouge', 'green': 'vert', 'yellow': 'jaune', 'orange': 'orange',
         'purple': 'violet', 'pink': 'rose', 'gray': 'gris', 'grey': 'gris',
@@ -261,28 +265,6 @@ class ProcessDataForATC:
         data = pd.concat([data1,data2],axis=0) 
         self.data = data
     
-    def encoding_variables(self, is_training:bool) -> None:
-        """
-        Target (new_target:score atc) encoding of multiple categorical variables with a lot of category. 
-        """
-        if is_training:
-            target_mean_comm = self.data.groupby('vehicle_commercial_name')['new_target'].mean()
-            self.data['vehicle_commercial_name_encoded'] = self.data['vehicle_commercial_name'].map(target_mean_comm)
-
-            target_mean_model = self.data.groupby('vehicle_model')['new_target'].mean()
-            self.data['vehicle_model_encoded'] = self.data['vehicle_model'].map(target_mean_model)
-
-            target_mean_adj = self.data.groupby('adjectives')['new_target'].mean()
-            self.data['vehicle_adj_encoded'] = self.data['adjectives'].map(target_mean_adj)
-
-            target_mean_motor = self.data.groupby('motor_type')['new_target'].mean()
-            self.data['vehicle_motor_encoded'] = self.data['motor_type'].map(target_mean_motor)
-
-            target_mean_make = self.data.groupby('vehicle_make')['new_target'].mean()
-            self.data['vehicle_make_encoded'] = self.data['vehicle_make'].map(target_mean_make)
-        else:
-            #ADD COMPUTE ENCODED VARIABLE FOR INFERENCE
-            pass
 
     def create_boolean(self, nb:int) -> bool:
         """
@@ -295,12 +277,14 @@ class ProcessDataForATC:
 
     def handling_missing_values(self):
         '''
-        Handle missing values and delete repetitive information (columns), irrelevant (ids) and most correlated variables.
+        Handle missing values.
         '''
         df = self.get_dataframe()
-        col_pictures= ['pictures_data_count_valid360_exterieur','pictures_data_count','pictures_data_count_valid_photosphere','pictures_data_count_valid']
+        col_pictures= ['pictures_data_count_valid360_exterieur','pictures_data_count','pictures_data_count_valid_photosphere','pictures_data_count_valid', 'total_price','total_price_hors_option','nb_options','nb_place_parking']
         df[col_pictures] = df[col_pictures].fillna(0)
-
+        if self.mode  == 'training':
+            col_train = ['nb_ic','nb_listing','nb_detail']
+            df[col_train] = df[col_train].fillna(0)
         categorical_columns = df.select_dtypes(include=['object', 'category', 'string']).columns.tolist()
         df[categorical_columns] = df[categorical_columns].fillna('Unknown')
         mean_warranty = df['diff_warranty'].mean()
@@ -348,11 +332,6 @@ if __name__ == "__main__":
 
     process.handle_date()
     
-    process.create_kpi_score()
-
-    # à tester
-    process.encoding_variables(is_training=True)
-
     print(process.data.shape)
     process.handling_missing_values()
     print(process.data.shape)

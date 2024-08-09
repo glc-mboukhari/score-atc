@@ -9,9 +9,11 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from models.model_regressor import SecondaryModels
 from models.model_lead_nolead import PrimaryModel
+from processing.process.encoding import CategoryEncoder
 import numpy as np
 
 DYNAMO_TABLE_NAME = "TEST"
+PROFILE_NAME = 'datascientist@test'
 
 class ModelManager:
     def __init__(self, primary_model_path: str, secondary_models_paths: Dict[int, str], data:pd.DataFrame):
@@ -24,6 +26,11 @@ class ModelManager:
         self.data = data
             
     def load_data(self) -> pd.DataFrame:
+        '''
+        Load data located in a specific location in s3
+        :return pd.Dataframe 
+        '''
+        boto3.setup_default_session(profile_name=PROFILE_NAME)
         s3 = boto3.client('s3')
         obj = s3.get_object(Bucket=self.s3_bucket, Key=self.s3_key)
         return pd.read_csv(obj['Body'])
@@ -39,6 +46,9 @@ class ModelManager:
         cats = self.data.select_dtypes(exclude=np.number).columns.tolist()
         for col in cats:
             self.data[col] = self.data[col].astype('category')
+
+    def manage_encoding(self, data: pd.DataFrame) -> pd.DataFrame:
+        self.primary_model.encoder
 
     def manage_prediction(self, data: pd.DataFrame) -> pd.DataFrame:
         # Get primary model predictions
@@ -64,10 +74,10 @@ class ModelManager:
                 print(f"Error pushing to DynamoDB: {e}")
 
 if __name__ == "__main__":
-    primary_model_path = "../models/save_models/model_lead_nolead.pkl"
+    primary_model_path = "../models/save_models_training/model_lead_nolead.pkl"
     secondary_models_paths = {
-        0: "../models/save_models/model_null.pkl",
-        1: "../models/save_models/model_nonull.pkl"
+        0: "../models/save_models_training/model_null.pkl",
+        1: "../models/save_models_training/model_nonull.pkl"
     }
 
     # Load new data for prediction

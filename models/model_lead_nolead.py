@@ -11,7 +11,8 @@ class PrimaryModel:
             raise FileNotFoundError(f"The model file does not exist at the specified path: {self.model_path}")
         try:
             with open(self.model_path, 'rb') as file:
-                self.model = pickle.load(file)
+                self.model = pickle.load(file)[0]
+                self.encoder = pickle.load(file)[1]
             print(f"Model loaded successfully from {self.model_path}")
         except Exception as e:
             raise ValueError(f"Error loading model from {self.model_path}: {e}")
